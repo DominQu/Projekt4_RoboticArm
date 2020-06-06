@@ -1,4 +1,5 @@
 #include "Robot.h"
+
 //Private init functions
 void Robot::initVariables()
 {
@@ -30,21 +31,35 @@ void Robot::initVariables()
 	this->radius = (this->armsize.y / 2) + 20.f;
 
 	//Variables
-	this->movementAngle = 1.f;
-}
+	this->movementAngle = 0.3f;
 
+	//Saving moves mode variables
+	this->isbeingsaved = false;
+	this->followsavedpath = false;
+	this->onetimeloading = 0;
+}
 void Robot::initWindow()
 {
 	this->videomode.height = 1080;
 	this->videomode.width = 1920;
 	
 	this->window = new sf::RenderWindow(videomode, "Robotic Arm", sf::Style::Titlebar | sf::Style::Close);
-	this->window->setFramerateLimit(60);
+	this->window->setFramerateLimit(144);
 }
 void Robot::initTexture()
 {
 	this->texture = new sf::Texture;
 	this->texture->loadFromFile("metal6.png");
+	
+}
+void Robot::initText()
+{
+	this->font.loadFromFile("bahnschrift.ttf");
+
+	this->text.setFont(this->font);
+	this->text.setString("Sterowanie:\nWyjscie z aplikacji - Escape\nRuchy ramieniem - strzalki\nPoczatek zapisu ruchow - S\nKoniec zapisu ruchow - E\nWczytaj zapisane ruchy - R");
+	this->text.setCharacterSize(24);
+	this->text.setFillColor(sf::Color::Black);
 }
 void Robot::initArm()
 {
@@ -99,20 +114,22 @@ void Robot::initArm()
 	this->circle3.setPosition(this->gripperposition);
 
 }
+
 //Constructor and destructor
 Robot::Robot()
 {
 	this->initVariables();
 	this->initWindow();
 	this->initTexture();
+	this->initText();
 	this->initArm();
 }
-
 Robot::~Robot()
 {
 	delete this->window;
 	delete this->texture;
 }
+
 //running state function
 const bool Robot::isrunning() const
 {
@@ -133,6 +150,7 @@ void Robot::pollEvents()
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
 				this->window->close();
 			break;
+
 		}
 	}
 }
@@ -153,6 +171,97 @@ void Robot::moveArm()
 	this->circle3.setPosition(this->gripperposition);
 }
 
+void Robot::savePosition()
+{
+	//saving current position and angles
+	this->arm2savedposition.x = this->arm2position.x;
+	this->arm2savedposition.y = this->arm2position.y;
+	this->grippersavedposition.x = this->gripperposition.x;
+	this->grippersavedposition.y = this->gripperposition.y;
+	this->arm1savedangle = this->arm1angle;
+	this->arm2savedangle = this->arm2angle;
+}
+
+void Robot::setSavedPosition()
+{
+	//Loading saved position, saved position is loaded only once
+	if (this->onetimeloading == 1) 
+	{
+		this->arm2position.x = this->arm2savedposition.x;
+		this->arm2position.y = this->arm2savedposition.y;
+
+		this->gripperposition.x = this->grippersavedposition.x;
+		this->gripperposition.y = this->grippersavedposition.y;
+
+		this->arm1angle = this->arm1savedangle;
+		this->arm2angle = this->arm2savedangle;
+
+		this->arm2.setPosition(arm2position);
+		this->gripper.setPosition(gripperposition);
+
+		this->arm1.setRotation(this->arm1angle - 90.f);
+		this->arm2.setRotation(this->arm2angle - 90.f);
+
+		this->circle1.setPosition(this->arm1position);
+		this->circle2.setPosition(this->arm2position);
+		this->circle3.setPosition(this->gripperposition);
+	}
+
+}
+
+void Robot::updateSavedMovement()
+{
+	//Following saved moves
+	if (this->followsavedpath && !this->queue.empty()) 
+	{
+		if (this->queue.front().x == 1.f)
+		{
+			this->arm1.rotate(this->queue.front().y);
+			this->arm1angle += this->queue.front().y;
+			this->moveArm();
+		}
+		else if (this->queue.front().x == 2.f)
+		{
+			this->arm2.rotate(this->queue.front().y);
+			this->arm2angle += this->queue.front().y;
+			this->moveArm();
+		}
+		
+		this->queue.pop();
+
+		if (this->queue.empty())
+		{
+			this->followsavedpath = false;
+			this->onetimeloading = 0;
+		}
+	}
+}
+
+void Robot::updateSaveEvents()
+{
+	/*Inputs from keyboard:
+		S (start saving), E (end saving), R (follow saved path) keys 
+	*/
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+			{
+			this->isbeingsaved = true;
+			this->savePosition();
+			}
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::E))
+			{
+			this->isbeingsaved = false;
+			}
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::R))
+			{
+			if (!this->queue.empty())
+				{
+				this->onetimeloading += 1;
+				this->setSavedPosition();
+				this->followsavedpath = true;
+				}
+			}
+}
+
 void Robot::updateArm()
 {
 	/* 
@@ -163,50 +272,79 @@ void Robot::updateArm()
 	//Move arm2
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
 	{
-		//Upper movement bounf
-		if (this->arm2angle >= 45.f) {
+		//Upper movement bound
+		if (this->arm2angle >= 45.f && this->gripperposition.y >= 75.f && this->gripperposition.x <= this->videomode.width - 75.f) {
 			this->arm2.rotate(-this->movementAngle);
 			this->arm2angle -= this->movementAngle;
 			this->moveArm();
+
+			//Saving moves
+			if (this->isbeingsaved)
+			{
+				this->queue.push(sf::Vector2f(2.f, -this->movementAngle));
+			}
 		}
 	}
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 	{
 		//Bottom movement bound
-		if (this->gripperposition.y <= this->videomode.height - 200.f) {
+		if (this->gripperposition.y <= this->videomode.height - 200.f && this->gripperposition.x <= this->videomode.width - 75.f) {
 			this->arm2.rotate(this->movementAngle);
 			this->arm2angle += this->movementAngle;
 			this->moveArm();
+
+			//Saving moves
+			if (this->isbeingsaved)
+			{
+				this->queue.push(sf::Vector2f(2.f, this->movementAngle));
+			}
 		}
 	}
 	//Move arm1
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
 	{
 		//Left movement bound
-		if (this->arm1angle >= -45.f && this->gripperposition.y <= this->videomode.height - 200.f) {
+		if (this->arm1angle >= -45.f && this->gripperposition.y <= this->videomode.height - 200.f && this->gripperposition.y >= 75.f) {
 			this->arm1.rotate(-this->movementAngle);
 			this->arm1angle -= this->movementAngle;
 			this->moveArm();
+
+			//Saving moves
+			if (this->isbeingsaved)
+			{
+				this->queue.push(sf::Vector2f(1.f, -this->movementAngle));
+			}
 		}
 	}
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
 	{
 		//Right movement bound
-		if (this->arm1angle <= 45.f && this->gripperposition.y <= this->videomode.height - 200.f) {
+		if (this->arm1angle <= 45.f && this->gripperposition.y <= this->videomode.height - 200.f && this->gripperposition.y >= 75.f && this->gripperposition.x <= this->videomode.width - 75.f) {
 			this->arm1.rotate(this->movementAngle);
 			this->arm1angle += this->movementAngle;
 			this->moveArm();
+
+			//Saving moves
+			if (this->isbeingsaved)
+			{
+				this->queue.push(sf::Vector2f(1.f, this->movementAngle));
+			}
 		}
 	}
-
 }
 
 void Robot::update()
 {
 	this->pollEvents();
 
+	this->updateSaveEvents();
 	this->updateArm();
+	this->updateSavedMovement();
+}
 
+void Robot::renderText(sf::RenderTarget& target)
+{
+	target.draw(text);
 }
 
 void Robot::renderArm(sf::RenderTarget& target)
@@ -224,7 +362,8 @@ void Robot::render()
 {
 	this->window->clear(sf::Color::White);
 
-	//Draw everything here
+	//Drawing everything here
+	this->renderText(*this->window);
 	this->renderArm(*this->window);
 
 	this->window->display();
