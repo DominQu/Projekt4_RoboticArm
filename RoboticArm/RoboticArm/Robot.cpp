@@ -30,8 +30,17 @@ void Robot::initVariables()
 	//circle1&2&3
 	this->radius = (this->armsize.y / 2) + 20.f;
 
+	//Boxes
+	this->boxstartposition.x = 900.f;
+	this->boxstartposition.y = 980.f;
+	this->boxsize.x = 100.f;
+	this->boxsize.y = 100.f;
+	this->boxorigin.x = this->boxsize.x / 2;
+	this->boxorigin.y = 0.f;
+
 	//Variables
 	this->movementAngle = 0.3f;
+	this->magnetonoff = false;
 
 	//Saving moves mode variables
 	this->isbeingsaved = false;
@@ -57,7 +66,7 @@ void Robot::initText()
 	this->font.loadFromFile("bahnschrift.ttf");
 
 	this->text.setFont(this->font);
-	this->text.setString("Sterowanie:\nWyjscie z aplikacji - Escape\nRuchy ramieniem - strzalki\nPoczatek zapisu ruchow - S\nKoniec zapisu ruchow - E\nWczytaj zapisane ruchy - R");
+	this->text.setString("Sterowanie:\nWyjscie z aplikacji - Escape\nRuchy ramieniem - strzalki\nPoczatek zapisu ruchow - S\nKoniec zapisu ruchow - E\nWczytaj zapisane ruchy - R\nStworz nowy klocek - W\nWlacz/wylacz magnes - Spacja");
 	this->text.setCharacterSize(24);
 	this->text.setFillColor(sf::Color::Black);
 }
@@ -90,6 +99,8 @@ void Robot::initArm()
 	this->gripper.setTexture(this->texture);
 	this->gripper.setOutlineColor(sf::Color::Black);
 	this->gripper.setOutlineThickness(2.f);
+	this->gripperendposition.x = this->gripperposition.x;
+	this->gripperendposition.y = this->gripperposition.y + this->grippersize.x;
 
 	//other parts
 	this->circle1.setRadius(this->radius);
@@ -128,6 +139,11 @@ Robot::~Robot()
 {
 	delete this->window;
 	delete this->texture;
+
+	for (int i = this->boxes.size()-1; i >= 0; i--) 
+	{
+		this->boxes.erase(this->boxes.begin() + i);
+	}
 }
 
 //running state function
@@ -150,6 +166,16 @@ void Robot::pollEvents()
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Escape))
 				this->window->close();
 			break;
+		case sf::Event::KeyReleased:
+			if (this->event.key.code == sf::Keyboard::W)
+			{
+				this->createnewbox();
+			}
+			else if (this->event.key.code == sf::Keyboard::Space)
+			{
+				this->magnetonoff = !this->magnetonoff;
+			}
+			break;
 
 		}
 	}
@@ -163,6 +189,9 @@ void Robot::moveArm()
 
 	this->gripperposition.x = this->arm2position.x + this->armsize.x * std::sinf((this->arm2angle) * (this->pi / 180.f));
 	this->gripperposition.y = this->arm2position.y - this->armsize.x * std::cosf((this->arm2angle) * (this->pi / 180.f));
+
+	this->gripperendposition.x = this->gripperposition.x;
+	this->gripperendposition.y = this->gripperposition.y + this->grippersize.x;
 	
 	//Updating elements positions
 	this->arm2.setPosition(arm2position);
@@ -185,7 +214,7 @@ void Robot::savePosition()
 void Robot::setSavedPosition()
 {
 	//Loading saved position, saved position is loaded only once
-	if (this->onetimeloading == 1) 
+	if (this->onetimeloading == 1)
 	{
 		this->arm2position.x = this->arm2savedposition.x;
 		this->arm2position.y = this->arm2savedposition.y;
@@ -206,7 +235,37 @@ void Robot::setSavedPosition()
 		this->circle2.setPosition(this->arm2position);
 		this->circle3.setPosition(this->gripperposition);
 	}
+}
 
+void Robot::createnewbox()
+{
+		this->box = new sf::RectangleShape;
+
+		this->box->setSize(this->boxsize);
+		this->box->setFillColor(sf::Color::Magenta);
+		this->box->setOutlineThickness(2.f);
+		this->box->setOutlineColor(sf::Color::Green);
+		this->box->setOrigin(this->boxorigin);
+		this->box->setPosition(this->boxstartposition);
+		
+
+		this->boxes.push_back(*this->box);
+}
+
+bool Robot::istouching(sf::Vector2f object)
+{
+	//Bool checking if an object is touching a box
+	if (!this->magnetonoff)
+	{
+		for (auto& i : this->boxes)
+		{
+			if (i.getGlobalBounds().contains(object))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void Robot::updateSavedMovement()
@@ -288,7 +347,7 @@ void Robot::updateArm()
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
 	{
 		//Bottom movement bound
-		if (this->gripperposition.y <= this->videomode.height - 200.f && this->gripperposition.x <= this->videomode.width - 75.f) {
+		if (this->gripperposition.y <= this->videomode.height - 200.f && this->gripperposition.x <= this->videomode.width - 75.f && !this->istouching(this->gripperendposition)) {
 			this->arm2.rotate(this->movementAngle);
 			this->arm2angle += this->movementAngle;
 			this->moveArm();
@@ -319,7 +378,7 @@ void Robot::updateArm()
 	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
 	{
 		//Right movement bound
-		if (this->arm1angle <= 45.f && this->gripperposition.y <= this->videomode.height - 200.f && this->gripperposition.y >= 75.f && this->gripperposition.x <= this->videomode.width - 75.f) {
+		if (this->arm1angle <= 45.f && this->gripperposition.y <= this->videomode.height - 200.f && this->gripperposition.y >= 75.f && this->gripperposition.x <= this->videomode.width - 75.f && !this->istouching(this->gripperendposition)) {
 			this->arm1.rotate(this->movementAngle);
 			this->arm1angle += this->movementAngle;
 			this->moveArm();
@@ -333,6 +392,28 @@ void Robot::updateArm()
 	}
 }
 
+void Robot::updateBoxes()
+{
+	//Moving catched boxes
+		for (int i = 0; i < this->boxes.size(); i++)
+		{
+			if (this->magnetonoff)
+			{
+				if (this->boxes[i].getGlobalBounds().intersects(this->gripper.getGlobalBounds()))
+				{
+					this->boxes[i].setPosition(this->gripperendposition);
+				}
+			}
+			else
+			{
+				if (this->boxes[i].getPosition().y < this->videomode.height - this->boxsize.y && !this->istouching(sf::Vector2f(this->boxes[i].getPosition().x, this->boxes[i].getPosition().y + this->boxsize.y + 3.f)))
+					this->boxes[i].move(sf::Vector2f(0.f, 5.f));
+			}
+		}
+	
+
+}
+
 void Robot::update()
 {
 	this->pollEvents();
@@ -340,6 +421,7 @@ void Robot::update()
 	this->updateSaveEvents();
 	this->updateArm();
 	this->updateSavedMovement();
+	this->updateBoxes();
 }
 
 void Robot::renderText(sf::RenderTarget& target)
@@ -355,7 +437,15 @@ void Robot::renderArm(sf::RenderTarget& target)
 	target.draw(this->circle1);
 	target.draw(this->circle2);
 	target.draw(this->circle3);
-	
+}
+
+void Robot::renderBoxes(sf::RenderTarget& target)
+{
+	for (auto& i : this->boxes)
+	{
+		target.draw(i);
+	}
+
 }
 
 void Robot::render()
@@ -365,6 +455,7 @@ void Robot::render()
 	//Drawing everything here
 	this->renderText(*this->window);
 	this->renderArm(*this->window);
+	this->renderBoxes(*this->window);
 
 	this->window->display();
 }

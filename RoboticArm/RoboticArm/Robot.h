@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cmath>
 #include <queue>
+#include <vector>
 
 #include <SFML/Graphics.hpp>
 #include <SFML/System.hpp>
@@ -35,11 +36,20 @@ private:
 	sf::Vector2f arm1position;
 	sf::Vector2f arm2position;
 	sf::Vector2f gripperposition;
+	sf::Vector2f gripperendposition;
 	sf::Vector2f circle1position;
 	float arm1angle;
 	float arm2angle;
 	float gripperangle;
 	float radius;
+
+	//Boxes
+	sf::RectangleShape *box;
+	std::vector <sf::RectangleShape> boxes;
+	sf::Vector2f boxsize;
+	sf::Vector2f boxstartposition;
+	sf::Vector2f boxorigin;
+
 
 	//Saving moves mode variables
 	bool isbeingsaved;
@@ -54,9 +64,8 @@ private:
 	//Variables
 	const float pi = 3.1415926535897;
 	float movementAngle;
-	int stepssaved = 0;
-	int stepstaken = 0;
-	int steps = 0;
+	bool magnetonoff;
+
 
 	//Initialization functions
 	void initVariables();
@@ -75,15 +84,19 @@ public:
 	void moveArm();
 	void savePosition();
 	void setSavedPosition();
+	void createnewbox();
+	bool istouching(sf::Vector2f);
 	
 	void pollEvents();
 
 	void updateSavedMovement();
 	void updateSaveEvents();
 	void updateArm();
+	void updateBoxes();
 	void update();
 
 	void renderText(sf::RenderTarget& target);
 	void renderArm(sf::RenderTarget& target);
+	void renderBoxes(sf::RenderTarget& target);
 	void render();
 };
