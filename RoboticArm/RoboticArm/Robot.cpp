@@ -72,7 +72,7 @@ void Robot::initText()
 }
 void Robot::initArm()
 {
-	//Drawing arm in default state
+	//Drawing arm in default position
 	//arm1
 	this->arm1.setSize(armsize);
 	this->arm1.setOrigin(armorigin);
@@ -155,6 +155,13 @@ const bool Robot::isrunning() const
 //Functions
 void Robot::pollEvents()
 {
+	/*
+	Handled keyboard inputs or events:
+	-close event,
+	-close on escape,
+	-create new box,
+	-magnet on and off
+	*/
 	while (this->window->pollEvent(this->event))
 	{
 		switch (this->event.type)
@@ -183,7 +190,7 @@ void Robot::pollEvents()
 
 void Robot::moveArm()
 {
-	//Updating variables
+	//Updating position variables
 	this->arm2position.x = this->arm1position.x + this->armsize.x * std::sinf(this->arm1angle * (this->pi / 180.f));
 	this->arm2position.y = this->arm1position.y - this->armsize.x * std::cosf(this->arm1angle * (this->pi / 180.f));
 
@@ -202,7 +209,7 @@ void Robot::moveArm()
 
 void Robot::savePosition()
 {
-	//saving current position and angles
+	//Saving current position and angles, function called at the beginning of the save mode
 	this->arm2savedposition.x = this->arm2position.x;
 	this->arm2savedposition.y = this->arm2position.y;
 	this->grippersavedposition.x = this->gripperposition.x;
@@ -299,7 +306,9 @@ void Robot::updateSavedMovement()
 void Robot::updateSaveEvents()
 {
 	/*Inputs from keyboard:
-		S (start saving), E (end saving), R (follow saved path) keys 
+		S (start saving),
+		E (end saving),
+		R (follow saved path) 
 	*/
 		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
 			{
@@ -394,7 +403,7 @@ void Robot::updateArm()
 
 void Robot::updateBoxes()
 {
-	//Moving catched boxes
+	//Moving boxes with arm, adding gravity
 		for (int i = 0; i < this->boxes.size(); i++)
 		{
 			if (this->magnetonoff)
